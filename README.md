@@ -1,4 +1,4 @@
-#FlintAPI
+# FlintAPI
 
 FlintAPI Is a minimal, lightweight webframework for Rust, inspired by FastAPI.
 the goal is to offer a supersimple syntax to build fast and clear APIs.
@@ -23,5 +23,8 @@ async fn ping -> impl Responder {
 flinapi = "0.1"
 ```
 
-## Under development...
-Contributions, ideas nad PRs are welcome!
+## Contributing
+Interested in contributing? Check out [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+This project is licensed under the [MIT License](LICENSE)
