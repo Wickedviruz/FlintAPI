@@ -12,6 +12,15 @@ pub struct Request {
 }
 
 impl Request {
+
+    pub fn query_param(&self, key: &str) -> &str {
+        self.query.get(key).map(|s| s.as_str()).unwrap_or("")
+    }
+
+    pub fn header(&self, key: &str) -> &str {
+        self.headers.get(&key.to_ascii_lowercase()).map(|s| s.as_str()).unwrap_or("")
+    }
+
     pub fn from_raw(raw: &str) -> Self {
         let (head, body) = raw.split_once("\r\n\r\n").unwrap_or((raw, ""));
         let mut lines = head.lines();

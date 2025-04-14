@@ -1,6 +1,6 @@
-use flintapi::{json, App};
+use flintapi::{App, json};
+use flintapi::response::Response;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct User {
@@ -12,33 +12,30 @@ struct User {
 async fn main() {
     let mut app = App::new();
 
-    app.get("/api/users", |_req| async {
-        json(json!({ "message": "GET revied!" }))
+    app.get_json("/api/users", |_| {
+        json!({ "message": "GET received!" })
     });
 
-    app.get("/api/user/:id", |_req| async move {
-        let id = _req.params.get("id").unwrap();
-        json(json!({ "user_id": id }))
-    });
-    
-
-    app.post("/api/users", |_req| async move {
-        println!("Recived in rwa body {}", _req.body);
-        match _req.json::<User>() {
-            Ok(user) => json(json!({ "user": user})),
-            Err(e) => {
-                println!("JSON error: {:?}", e);
-                json(json!({ "error": "Invalid JSON"}))
-            }
-        }
+    app.get("/api/user/:id", |req| async move {
+        let id = req.params.get("id").map(|s| s.as_str()).unwrap_or("unknown");
+        Response::json(json!({ "user_id": id }))
     });
 
-    app.put("/api/users/1", |_req| async {
-        json(json!({ "message": "PUT recived!"}))
+    app.get("/api/search", |req| async move {
+        let q = req.query_param("q");
+        Response::json(json!({ "search": q }))
     });
 
-    app.delete("/api/users/1", |_req| async {
-        json(json!({ "message": "DELETE recived!"}))
+    app.post_json("/api/users", |user: User| {
+        json!({ "created": true, "user": user })
+    });
+
+    app.put("/api/users/1", |_| async {
+        Response::json(json!({ "message": "PUT received!" }))
+    });
+
+    app.delete("/api/users/1", |_| async {
+        Response::json(json!({ "message": "DELETE received!" }))
     });
 
     app.run("127.0.0.1:8000").await;

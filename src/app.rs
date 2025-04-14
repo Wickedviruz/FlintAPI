@@ -1,6 +1,11 @@
 use crate::router::Router;
+use crate::json;
+use crate::request::Request;
+use crate::response::Response;
+
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
 
 const MAX_REQUEST_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
@@ -15,10 +20,45 @@ impl App {
         }
     }
 
+    pub fn get_json<T, F>(&mut self, path: &str, handler: F)
+        where
+            T: serde::Serialize + 'static,
+            F: Fn(Request) -> T + Send + Sync + 'static,
+        {
+            let handler = Arc::new(handler); // dela referens
+
+            self.get(path, move |req| {
+                let handler = Arc::clone(&handler); // klona in
+                async move {
+                    Response::json(handler(req))
+                }
+            });
+        }
+    
+    pub fn post_json<T, F, R>(&mut self, path: &str, handler: F)
+        where
+            T: serde::de::DeserializeOwned + 'static,
+            R: serde::Serialize + 'static,
+            F: Fn(T) -> R + Send + Sync + 'static,
+        {
+            use std::sync::Arc;
+            let handler = Arc::new(handler);
+        
+            self.post(path, move |req| {
+                let handler = Arc::clone(&handler);
+                async move {
+                    match req.json::<T>() {
+                        Ok(data) => Response::json(handler(data)),
+                        Err(_) => Response::bad_request(json!({ "error": "Invalid JSON" })),
+                    }
+                }
+            });
+        }
+
     pub fn get<F, Fut>(&mut self, path: &str, handler: F)
         where
             F: Fn(crate::request::Request) -> Fut + Send + Sync + 'static,
-            Fut: std::future::Future<Output = String> + Send + 'static,
+            Fut: std::future::Future<Output = crate::response::Response> + Send + 'static,
         {
             self.router
                 .add("GET", path, Box::new(move |req| Box::pin(handler(req))));
@@ -27,7 +67,7 @@ impl App {
     pub fn post<F, Fut>(&mut self, path: &str, handler: F)
         where
             F: Fn(crate::request::Request) -> Fut + Send + Sync + 'static,
-            Fut: std::future::Future<Output = String> + Send + 'static,
+            Fut: std::future::Future<Output = crate::response::Response> + Send + 'static,
         {
             self.router
                 .add("POST", path, Box::new(move |req| Box::pin(handler(req))));
@@ -36,7 +76,7 @@ impl App {
     pub fn put<F, Fut>(&mut self, path: &str, handler: F)
         where
             F: Fn(crate::request::Request) -> Fut + Send + Sync + 'static,
-            Fut: std::future::Future<Output = String> + Send + 'static,
+            Fut: std::future::Future<Output = crate::response::Response> + Send + 'static,
         {
             self.router
                 .add("PUT", path, Box::new(move |req| Box::pin(handler(req))));
@@ -45,7 +85,7 @@ impl App {
     pub fn delete<F, Fut>(&mut self, path: &str, handler: F)
         where
             F: Fn(crate::request::Request) -> Fut + Send + Sync + 'static,
-            Fut: std::future::Future<Output = String> + Send + 'static,
+            Fut: std::future::Future<Output = crate::response::Response> + Send + 'static,
         {
             self.router
                 .add("DELETE", path, Box::new(move |req| Box::pin(handler(req))));
@@ -54,7 +94,7 @@ impl App {
     pub fn options<F, Fut>(&mut self, path: &str, handler: F)
         where
             F: Fn(crate::request::Request) -> Fut + Send + Sync + 'static,
-            Fut: std::future::Future<Output = String> + Send + 'static,
+            Fut: std::future::Future<Output = crate::response::Response> + Send + 'static,
         {
             self.router
                 .add("OPTIONS", path, Box::new(move |req| Box::pin(handler(req))));
@@ -126,7 +166,8 @@ impl App {
                 let request = crate::request::Request::from_raw(&request_str);
             
                 let response = router.handle(request).await;
-                let _ = socket.write_all(response.as_bytes()).await;
+                let raw = response.to_http_string();
+                let _ = socket.write_all(raw.as_bytes()).await;
             });
         }
     }
