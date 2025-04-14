@@ -1,35 +1,36 @@
-use std::collections::HashMap;
-
 use crate::handler::Handler;
+use crate::parser::path::match_path;
 use crate::request::Request;
 
 pub struct Router {
-    routes: HashMap<String, Handler>,
+    routes: Vec<(String, String, Handler)>, // (method, path, handler)
 }
 
 impl Router {
     pub fn new() -> Self {
-        Self {
-            routes: HashMap::new(),
-        }
+        Self { routes: Vec::new() }
     }
 
     pub fn add(&mut self, method: &str, path: &str, handler: Handler) {
-        let key = Self::route_key(method, path);
-        self.routes.insert(key, handler);
+        self.routes.push((method.to_string(), path.to_string(), handler));
     }
 
-    pub async fn handle(&self, request: Request) -> String {
-        let key = Self::route_key(&request.method, &request.path);
-        if let Some(handler) = self.routes.get(&key) {
-            handler(request).await
-        } else {
-            Self::not_found()
+    pub async fn handle(&self, mut request: Request) -> String {
+        if request.method == "OPTIONS" {
+            return crate::response::cors_preflight(); // catch all OPTIONS!
         }
-    }
-
-    fn route_key(method: &str, path: &str) -> String {
-        format!("{} {}", method.to_uppercase(), path)
+    
+        for (method, route_path, handler) in &self.routes {
+            if &request.method == method {
+                if let Some(params) = match_path(route_path, &request.path) {
+                    request.params = params;
+                    let raw = handler(request).await;
+                    return crate::response::with_cors(&raw);
+                }
+            }
+        }
+    
+        crate::response::with_cors(&Self::not_found())
     }
 
     fn not_found() -> String {

@@ -16,6 +16,12 @@ async fn main() {
         json(json!({ "message": "GET revied!" }))
     });
 
+    app.get("/api/user/:id", |_req| async move {
+        let id = _req.params.get("id").unwrap();
+        json(json!({ "user_id": id }))
+    });
+    
+
     app.post("/api/users", |_req| async move {
         println!("Recived in rwa body {}", _req.body);
         match _req.json::<User>() {
